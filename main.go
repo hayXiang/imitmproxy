@@ -59,6 +59,20 @@ var hopByHop = []string{
 	"Upgrade",
 }
 
+type mitmHandler struct {
+	transport  *http.Transport
+	removeReq  map[string]struct{}
+	removeResp map[string]struct{}
+}
+
+func (h *mitmHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if strings.EqualFold(r.Method, "CONNECT") {
+		handleMITM(w, r, h.transport, h.removeReq, h.removeResp)
+	} else {
+		handleHTTP(w, r, h.transport, h.removeReq, h.removeResp)
+	}
+}
+
 func main() {
 	flag.Parse()
 
@@ -83,19 +97,11 @@ func main() {
 		MaxIdleConnsPerHost: 100,
 	}
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.EqualFold(r.Method, "CONNECT") {
-			if *verbose {
-				log.Printf("MITM CONNECT %s from %s", r.Host, r.RemoteAddr)
-			}
-			handleMITM(w, r, transport, reqRemoves, resRemoves)
-		} else {
-			if *verbose {
-				log.Printf("HTTP %s %s from %s", r.Method, r.URL, r.RemoteAddr)
-			}
-			handleHTTP(w, r, transport, reqRemoves, resRemoves)
-		}
-	})
+	handler := &mitmHandler{
+		transport:  transport,
+		removeReq:  reqRemoves,
+		removeResp: resRemoves,
+	}
 
 	log.Printf("Starting MITM proxy on %s", *listenAddr)
 	server := &http.Server{
@@ -103,6 +109,7 @@ func main() {
 		ReadTimeout:       *readTimeout,
 		IdleTimeout:       *idleTimeout,
 		ReadHeaderTimeout: 5 * time.Second,
+		Handler:           handler,
 	}
 	err = server.ListenAndServe()
 	if err != nil {

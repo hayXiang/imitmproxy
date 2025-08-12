@@ -23,6 +23,7 @@ import (
 	"math/big"
 	"net"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -110,11 +111,11 @@ func main() {
 }
 
 func loadCA(certFile, keyFile string) (*x509.Certificate, *rsa.PrivateKey, error) {
-	certPEM, err := io.ReadFile(certFile)
+	certPEM, err := os.ReadFile(certFile)
 	if err != nil {
 		return nil, nil, err
 	}
-	keyPEM, err := io.ReadFile(keyFile)
+	keyPEM, err := os.ReadFile(keyFile)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -212,7 +213,7 @@ func handleMITM(w http.ResponseWriter, r *http.Request, transport *http.Transpor
 		return
 	}
 
-	clientConn, clientBuf, err := hijacker.Hijack()
+	clientConn, _, err := hijacker.Hijack()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusServiceUnavailable)
 		return
